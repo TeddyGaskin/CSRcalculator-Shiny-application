@@ -1,0 +1,104 @@
+library(shiny)
+
+# Define UI
+ui <- fluidPage(
+  titlePanel("CSR Calculator"),
+  sidebarLayout(
+    sidebarPanel(
+      fileInput("fileInput", "Upload a CSV File",
+                accept = c(".csv")),  # Restrict to CSV files
+      selectInput("functionSelect", "Select Model Function", choices = NULL),  # Dropdown for model functions
+      actionButton("applyModel", "Apply Model"),
+      helpText("Upload a CSV file and select a model to apply.")
+    ),
+    mainPanel(
+      fluidRow(
+        column(6,
+               h4("Original Table"),
+               tags$div(
+                 style = "overflow-y: auto; max-height: 300px;",  # Restrict table height and add scroll
+                 tableOutput("originalTable")
+               )
+        ),
+        column(6,
+               h4("Processed Table"),
+               tags$div(
+                 style = "overflow-y: auto; max-height: 300px;",  # Restrict table height and add scroll
+                 tableOutput("processedTable")
+               )
+        )
+      ),
+      fluidRow(
+        column(12,
+               h4("CSR Ternary Plot (to be added)"),
+               plotOutput("ternaryPlot", height = "400px"))
+      )
+    )
+  )
+)
+
+# Define server logic
+server <- function(input, output, session) {
+
+  # Populate the dropdown dynamically with placeholder functions
+  observe({
+    packageFunctions <- c("strateFy")  # Replace with actual package functions
+    updateSelectInput(session, "functionSelect", choices = packageFunctions)
+  })
+
+  # Reactive: Read uploaded data
+  inputData <- reactive({
+    req(input$fileInput)
+    tryCatch(
+      {
+        data <- read.csv(input$fileInput$datapath)
+        colnames(data) <- tolower(colnames(data))  # Standardise column names
+        validate(need(all(c("species", "la", "lfw", "ldw") %in% colnames(data)),
+                      "The uploaded file must contain columns: species, la, lfw, and ldw."))
+        data
+      },
+      error = function(e) {
+        showNotification("Error reading file. Please check the format and column names.", type = "error")
+        NULL
+      }
+    )
+  })
+
+  # Render original table
+  output$originalTable <- renderTable({
+    req(inputData())
+    inputData()
+  })
+
+  # Processed Table (blank until model applied)
+  processedData <- reactiveVal(NULL)  # Store processed data
+
+  output$processedTable <- renderTable({
+    req(processedData())
+    processedData()
+  })
+
+  # Apply model logic
+  observeEvent(input$applyModel, {
+    req(inputData(), input$functionSelect)
+    tryCatch(
+      {
+        selectedFunction <- get(input$functionSelect, envir = asNamespace("CSRcalc"))
+        result <- selectedFunction(inputData())
+        processedData(result)  # Update the processed table
+      },
+      error = function(e) {
+        showNotification(paste("Error applying function:", e$message), type = "error")
+      }
+    )
+  })
+
+  # Placeholder for CSR ternary plot
+  output$ternaryPlot <- renderPlot({
+    # Add your plotting logic here later
+    NULL
+  })
+}
+
+# Run the application
+shinyApp(ui = ui, server = server)
