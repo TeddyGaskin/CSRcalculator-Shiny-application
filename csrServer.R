@@ -151,7 +151,7 @@ csrServer <- function(input, output, session) {
 
         h3("Acknowledgments"),
         p("This app was developed as part of a NERC-funded PhD studentship under the ARIES Doctoral Training Partnership As well as in partnership with the Beth Chatto's Gardens"),
-        p("For any queries, contact: teddygaskin@gmail.com"),
+        p("For any queries, contact: "),
       ))
     }
 
