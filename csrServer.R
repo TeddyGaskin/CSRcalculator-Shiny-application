@@ -59,11 +59,19 @@ csrServer <- function(input, output, session) {
     expandedCard(NULL)
     expandedPlot(FALSE)
     redrawPlot(0)
+    compatibleModels(NULL)
   }
 
   # Update compatible models based on available trait columns
   updateCompatibleModels <- function(data) {
-    compatibleModels(checkCompatibleModels(data))
+    mods <- checkCompatibleModels(data)
+
+    # If there are no compatible models, store "None"
+    if (is.null(mods) || length(mods) == 0) {
+      compatibleModels("None")
+    } else {
+      compatibleModels(mods)
+    }
   }
 
   # Get the list of required traits for a given CSR model
@@ -78,24 +86,24 @@ csrServer <- function(input, output, session) {
   }
 
   # Identify non-trait columns suitable for grouping
-  getNonTraitColumns <- function() {
-    data <- getActiveInputData()
-    # requires available data, not null, to use function
-    req(data)
-    # vector of traits to be excluded from non-trait cols
+  getNonTraitColumns <- function(data) {
+    req(data)  # requires data to be available
+
+    # universal list of traits to exclude
     universalTraits <- c(
       "CH", "LDMC", "ldmc", "FS", "FP", "LS", "LDW", "LFW",
       "SLA", "sla", "LA", "PN", "RD", "LNC", "LCC", "succulenceIndex"
     )
     speciesCol <- "species"
 
-    colNames <- colnames(data)
-    # identifying and selecting columns from the data that are in (%in%) universalTraits,
-    # after converting traits and all cols to lowercase to be case insensitive
+    colNames <- names(data)
+    # identify trait columns present (case-insensitive match)
     traitColsPresent <- colNames[tolower(colNames) %in% tolower(universalTraits)]
-    # setdiff to find differences between columns in the data and the columns from traitcols and species
+    # all other columns are valid for grouping
     nonTraitCols <- setdiff(colNames, c(traitColsPresent, speciesCol))
-    return(nonTraitCols)
+
+    # return plain character vector
+    as.character(nonTraitCols)
   }
 
   # UI Start:
@@ -151,7 +159,7 @@ csrServer <- function(input, output, session) {
 
         h3("Acknowledgments"),
         p("This app was developed as part of a NERC-funded PhD studentship under the ARIES Doctoral Training Partnership As well as in partnership with the Beth Chatto's Gardens"),
-        p("For any queries, contact: "),
+        p("For any queries, contact: teddygaskin@gmail.com"),
       ))
     }
 
@@ -497,8 +505,13 @@ csrServer <- function(input, output, session) {
 
   # Render list of compatible models
   output$compatibleModelsText <- renderText({
-    req(compatibleModels())
-    paste("Compatible models:", paste(compatibleModels(), collapse = ", "))
+    # Only show once there is some data uploaded/loaded
+    req(originalData())
+
+    mods <- compatibleModels()
+    req(mods)  # never character(0) after updateCompatibleModels()
+
+    paste("Compatible models:", paste(mods, collapse = ", "))
   })
 
   # Render the uploaded data set
@@ -643,12 +656,19 @@ csrServer <- function(input, output, session) {
     req(originalData())
 
     data <- getActiveInputData()
-    # grouping options should not be trait columns
-    groupCandidates <- getNonTraitColumns()
+    req(data)
 
-    # Allow character, factor, or numeric columns with < 20 unique values
+    # grouping options should not be trait columns
+    groupCandidates <- getNonTraitColumns(data)
+
+    if (length(groupCandidates) == 0) {
+      return(tags$em("No suitable grouping columns available."))
+    }
+
+    # allow character, factor, or numeric columns with < 20 unique values
     validGroups <- groupCandidates[
-      sapply(data[groupCandidates], function(col) {
+      sapply(groupCandidates, function(nm) {
+        col <- data[[nm]]
         is.character(col) ||
           is.factor(col) ||
           (is.numeric(col) && length(unique(na.omit(col))) <= 20)
@@ -660,12 +680,13 @@ csrServer <- function(input, output, session) {
     }
 
     selectInput(
-      inputId = "groupByColumn",
-      label = "Group Traits By:",
-      choices = validGroups,
+      inputId  = "groupByColumn",
+      label    = "Group Traits By:",
+      choices  = validGroups,
       selected = validGroups[1]
     )
   })
+
 
   # Render trait selection UI
   output$traitSelectionUI <- renderUI({
@@ -731,34 +752,23 @@ csrServer <- function(input, output, session) {
 
   # CSR Averaging (Scores/Percentages):
 
-  # Helper to get non-trait columns for grouping
-  getNonTraitColumns <- function() {
-    data <- getActiveInputData()
-    req(data)
-
-    # Universal list of trait columns across models
-    universalTraits <- c(
-      "CH", "LDMC", "ldmc", "FS", "FP", "LS", "LDW", "LFW",
-      "SLA", "sla", "LA", "PN", "RD", "LNC", "LCC", "succulenceIndex"
-    )
-    speciesCol <- "species"
-
-    colNames <- colnames(data)
-    traitColsPresent <- colNames[tolower(colNames) %in% tolower(universalTraits)]
-    nonTraitCols <- setdiff(colNames, c(traitColsPresent, speciesCol))
-    return(nonTraitCols)
-  }
-
   # Render UI for selecting a grouping column for CSR score averaging
   output$csrGroupByUI <- renderUI({
     req(originalData())
 
     data <- getActiveInputData()
-    groupCandidates <- getNonTraitColumns()
+    req(data)
 
-    # Allow character, factor, or numeric columns with fewer than 20 unique values
+    groupCandidates <- getNonTraitColumns(data)
+
+    if (length(groupCandidates) == 0) {
+      return(tags$em("No suitable grouping columns available."))
+    }
+
+    # allow character, factor, or numeric columns with < 20 unique values
     validGroups <- groupCandidates[
-      sapply(data[groupCandidates], function(col) {
+      sapply(groupCandidates, function(nm) {
+        col <- data[[nm]]
         is.character(col) ||
           is.factor(col) ||
           (is.numeric(col) && length(unique(na.omit(col))) <= 20)
@@ -770,9 +780,9 @@ csrServer <- function(input, output, session) {
     }
 
     selectInput(
-      inputId = "csrGroupBy",
-      label = "Group CSR scores by:",
-      choices = validGroups,
+      inputId  = "csrGroupBy",
+      label    = "Group CSR scores by:",
+      choices  = validGroups,
       selected = validGroups[1]
     )
   })
@@ -857,6 +867,7 @@ csrServer <- function(input, output, session) {
   observeEvent(input$applyModel, {
     req(input$functionSelect)
     data <- getActiveInputData(); req(data)
+
 
     # Validate that all required inputs are available
     validationError <- validateCsrModel(data, input$functionSelect, input)
@@ -1040,7 +1051,7 @@ csrServer <- function(input, output, session) {
   output$csrTernaryPlot <- renderPlotly({
     req(redrawPlot())
 
-    # Use processed or CSR-averaged data
+    # use processed or CSR-averaged data
     fullData <- if (!is.null(csrAveragedData())) {
       csrAveragedData()
     } else {
@@ -1048,7 +1059,7 @@ csrServer <- function(input, output, session) {
     }
     req(fullData)
 
-    # Filter data by visible rows in the table if option is enabled
+    # filter data by visible rows in the table if option is enabled
     if (isTRUE(input$filterPlotByTable)) {
       rowIdx <- input$csrProcessedTable_rows_all
       if (is.null(rowIdx)) rowIdx <- integer(0)
@@ -1067,9 +1078,54 @@ csrServer <- function(input, output, session) {
       }
     }
 
-    # Generate plot object
-    generateCsrPlotObject(filteredData, input, highlightRows)
+    # check that csr columns exist before filtering
+    csrCols <- c("cPercent", "sPercent", "rPercent")
+    if (all(csrCols %in% names(filteredData))) {
+
+      # identify rows where any csr value is missing
+      naCsr <- is.na(filteredData$cPercent) |
+        is.na(filteredData$sPercent) |
+        is.na(filteredData$rPercent)
+
+      if (any(naCsr)) {
+        # console message for you
+        message(
+          "excluding ", sum(naCsr),
+          " row(s) with NA CSR values from ternary plot. affected species: ",
+          paste(unique(filteredData$species[naCsr]), collapse = ", ")
+        )
+
+        # shiny popup for the user
+        shiny::showNotification(
+          paste0(
+            sum(naCsr),
+            " row(s) have NA CSR values and are excluded from the ternary plot. affected species: ",
+            paste(unique(filteredData$species[naCsr]), collapse = ", ")
+          ),
+          type = "warning",
+          duration = 10
+        )
+      }
+
+      # keep all rows for tables, but remove csr NA rows for plotting only
+      plotData <- filteredData[!naCsr, , drop = FALSE]
+      plotHighlight <- highlightRows[!naCsr]
+
+    } else {
+      # fallback if csr columns are not present
+      plotData <- filteredData
+      plotHighlight <- highlightRows
+    }
+
+    # if no valid rows remain, return an empty ternary plot
+    if (nrow(plotData) == 0) {
+      return(plotly::plot_ly(type = "scatterternary"))
+    }
+
+    # generate plot object using csr-valid rows only
+    generateCsrPlotObject(plotData, input, plotHighlight)
   })
+
 
   # Update available columns for shape mapping
   observe({

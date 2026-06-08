@@ -1,3 +1,6 @@
+# file upload limit
+options(shiny.maxRequestSize = 30 * 1024^2)  # 15 MB
+
 # Load required libraries
 library(colorspace)
 library(shiny)
