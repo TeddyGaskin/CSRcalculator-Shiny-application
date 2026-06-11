@@ -115,15 +115,23 @@ validateCsrModel <- function(data, selectedModel, input = NULL) {
   detected <- names(data)
 
   if (selectedModel == "strateFy") {
-    ok <- any(vapply(list(
-      c("species", "LA", "LFW", "LDW"),
-      c("species", "LA", "SLA", "LDMC"),
-      c("species", "LA", "SLA", "LFW", "LDW"),
-      c("species", "LA", "LDMC", "LFW", "LDW")
-    ), \(opt) all(opt %in% detected), FALSE))
+    # mirror the server: unchecked box = app calculates the trait
+    calcSLA  <- !isTRUE(input$useProvidedSLA)
+    calcLDMC <- !isTRUE(input$useProvidedLDMC)
 
-    if (!ok) {
-      return("Error: StrateFy needs LA + LFW + LDW or LA + SLA + LDMC (with possible calculation of one or both).")
+    # LA is always required; build the rest from the checkbox states
+    need <- c(
+      "species", "LA",
+      # SLA: provided directly, or calculated from LA + LDW
+      if (calcSLA) "LDW" else "SLA",
+      # LDMC: provided directly, or calculated from LFW + LDW
+      if (calcLDMC) c("LFW", "LDW") else "LDMC"
+    )
+    need <- unique(need)
+
+    miss <- setdiff(need, detected)
+    if (length(miss)) {
+      return(paste("Error: StrateFy requires:", paste(need, collapse = ", ")))
     }
 
   } else if (selectedModel == "hodgson") {
