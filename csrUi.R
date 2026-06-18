@@ -10,6 +10,7 @@ theme <- bs_theme(
 
 # Define main UI layout
 csrUi <- bslib::page_sidebar(
+  window_title = "CSR Calculator",
   # lets the page content fill available space
   fillable = TRUE,
   # fill sidebar and main content
@@ -17,12 +18,19 @@ csrUi <- bslib::page_sidebar(
   # apply defined theme
   theme = theme,
 
-  # App title with logo and hover tooltip
-  title = tags$img(
-    src = "logo.png",
-    alt = "CSR Calculator",
-    title = "CSR Calculator",
-    style = "width: 300px; height: auto;"
+  # App title with logo and version
+  title = tags$div(
+    style = "display: flex; align-items: flex-end; justify-content: space-between; width: 100%;",
+    tags$img(
+      src = "logo.png",
+      alt = "CSR Calculator",
+      title = "CSR Calculator",
+      style = "width: 300px; height: auto;"
+    ),
+    tags$span(
+      style = "font-size: 0.8rem; color: #888;",
+      paste("Version", APP_VERSION)
+    )
   ),
 
   sidebar = bslib::sidebar(

@@ -1,3 +1,4 @@
+APP_VERSION <<- "1.0.0"
 # file upload limit
 options(shiny.maxRequestSize = 30 * 1024^2)  # 15 MB
 

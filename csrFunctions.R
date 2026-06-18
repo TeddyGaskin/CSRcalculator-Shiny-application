@@ -25,6 +25,12 @@ renameColumns <- function(data) {
       names(data)[names(data) %in% matchedCols] <- colName
     }
   }
+  data[] <- lapply(data, function(col) {
+    if (is.character(col)) {
+      iconv(col, from = "latin1", to = "ASCII//TRANSLIT", sub = "")
+    } else col
+  })
+
   return(data)
 }
 
@@ -694,7 +700,7 @@ buildSummaryStats <- function(data, groupBy = NULL) {
   # Optional separator row for clarity
   separatorRow <- as.data.frame(matrix(NA, nrow = 1, ncol = ncol(groupedStats)))
   names(separatorRow) <- names(groupedStats)
-  separatorRow$group <- "—"
+  separatorRow$group <- "---"
 
   dplyr::bind_rows(overallSummary, separatorRow, groupedStats)
 }
